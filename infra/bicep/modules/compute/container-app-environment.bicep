@@ -22,6 +22,9 @@ param logAnalyticsWorkspaceResourceId string
 @description('Enable zone redundancy.')
 param zoneRedundant bool = false
 
+@description('Optional. Dedicated subnet delegated to Microsoft.App/environments. Must be set when the environment is created.')
+param infrastructureSubnetId string = ''
+
 @description('Workload profiles configuration (e.g., Consumption or dedicated D4 profiles).')
 param workloadProfiles array = [
   {
@@ -47,6 +50,10 @@ resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' 
     }
     workloadProfiles: workloadProfiles
     zoneRedundant: zoneRedundant
+    vnetConfiguration: empty(infrastructureSubnetId) ? null : {
+      infrastructureSubnetId: infrastructureSubnetId
+      internal: false
+    }
   }
 }
 

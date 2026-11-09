@@ -792,7 +792,7 @@ module app_service_plan './modules/compute/app-service-plan.bicep' = {
     solutionName: solutionSuffix
     location: solutionLocation
     tags: allTags
-    skuName: 'B3'
+    skuName: 'P1v3'
     skuCapacity: 1
   }
 }

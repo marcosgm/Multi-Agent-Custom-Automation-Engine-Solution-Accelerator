@@ -167,3 +167,28 @@ Use these as quick reference guides to unblock your deployments.
 
 💡 Note: If you encounter any other issues, you can refer to the [Common Deployment Errors](https://learn.microsoft.com/en-us/azure/azure-resource-manager/troubleshooting/common-deployment-errors) documentation.
 If the problem persists, you can also raise an bug in our [MACAE Github Issues](https://github.com/microsoft/Multi-Agent-Custom-Automation-Engine-Solution-Accelerator/issues) for further support.
+
+## Private data connectivity for an existing Container Apps deployment
+
+**Symptom:** Cosmos DB returns a firewall `403`. Check the **backend Container App**:
+`/healthz` does not test database access, and empty team lists can mask failed reads.
+
+**Fix:** Keep public data access disabled. Use
+[private-data-access.bicep](../infra/bicep/private-data-access.bicep) to create a
+VNet-integrated replacement environment, backend/MCP apps, and Cosmos SQL/Blob
+private endpoints with private DNS. An existing environment cannot change network type.
+
+1. Register `Microsoft.Network/AllowBringYourOwnPublicIpAddress`, wait for `Registered`,
+   then run `az provider register --namespace Microsoft.Network --wait`.
+2. Supply sanitized app exports as secure `backendApp`/`mcpApp` parameters
+   (`identity`, `configuration`, `template`, `profile`). Remove read-only/default
+   fields; resolve secrets separately. Keep parameter files out of source control.
+3. Deploy incrementally into the existing resource group. If a failed environment
+   still reserves its subnet, use a fresh `environmentName` and non-overlapping
+   `replacementContainerSubnetPrefix`.
+4. Verify private DNS and managed-identity Cosmos/Blob operations before switching
+   frontend `BACKEND_API_URL` and local `BACKEND_URL`, `BACKEND_CONTAINER_APP_NAME`,
+   and `MCP_CONTAINER_APP_NAME`. Retain original apps for rollback; they incur charges.
+
+The standard deployment router does not include this migration. It neither seeds
+team configurations nor replaces missing AI Foundry resources.
