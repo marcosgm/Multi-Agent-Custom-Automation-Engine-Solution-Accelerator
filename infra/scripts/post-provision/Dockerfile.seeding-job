@@ -1,0 +1,13 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /work
+ENV PYTHONUNBUFFERED=1
+
+COPY infra/scripts/post-provision/requirements.txt /work/requirements.txt
+RUN pip install --no-cache-dir -r /work/requirements.txt
+
+COPY infra/scripts/post-provision/seed_content_job.py infra/scripts/post-provision/index_datasets.py /work/infra/scripts/post-provision/
+COPY infra/scripts/post-provision/upload_team_config.py infra/scripts/post-provision/seed_vector_stores.py infra/scripts/post-provision/seed_knowledge_bases.py infra/scripts/post-provision/seed_kb_connections.py /work/infra/scripts/post-provision/
+COPY content_packs/ /work/content_packs/
+
+ENTRYPOINT ["python", "/work/infra/scripts/post-provision/seed_content_job.py"]

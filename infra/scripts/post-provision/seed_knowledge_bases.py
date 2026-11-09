@@ -324,6 +324,7 @@ def _put_semantic_config(index_name: str, searchable_fields: list[str], headers:
     else:
         print(f"  ✗ Failed to update semantic config on '{index_name}': {put_resp.status_code}")
         print(f"    {put_resp.text[:200]}")
+        put_resp.raise_for_status()
 
 
 def _create_knowledge_source(
@@ -351,6 +352,7 @@ def _create_knowledge_source(
     else:
         print(f"  ✗ Failed to create knowledge source '{source_name}': {resp.status_code}")
         print(f"    {resp.text[:200]}")
+        resp.raise_for_status()
 
 
 def _create_knowledge_base(kb_name: str, kb_def: dict, headers: dict) -> None:
@@ -372,6 +374,7 @@ def _create_knowledge_base(kb_name: str, kb_def: dict, headers: dict) -> None:
     else:
         print(f"  ✗ Failed to create knowledge base '{kb_name}': {resp.status_code}")
         print(f"    {resp.text[:200]}")
+        resp.raise_for_status()
 
 
 def _parse_only_filter() -> set[str] | None:

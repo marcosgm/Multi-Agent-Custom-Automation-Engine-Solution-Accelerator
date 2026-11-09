@@ -173,7 +173,7 @@ def main() -> None:
 
     # Discover the ARM resource ID of the project
     print("Discovering project resource ID...")
-    resource_id = _discover_project_resource_id(credential)
+    resource_id = os.environ.get("AZURE_AI_PROJECT_RESOURCE_ID") or _discover_project_resource_id(credential)
     if not resource_id:
         # Try to get it from an existing connection
         print("  Could not discover via data-plane. Trying existing connection...")

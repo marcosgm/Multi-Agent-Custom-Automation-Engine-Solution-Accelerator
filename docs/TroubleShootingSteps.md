@@ -192,3 +192,22 @@ private endpoints with private DNS. An existing environment cannot change networ
 
 The standard deployment router does not include this migration. It neither seeds
 team configurations nor replaces missing AI Foundry resources.
+
+### Run full seeding without public Storage access
+
+Use [data-seeding-job.bicep](../infra/bicep/data-seeding-job.bicep) in the VNet-integrated
+environment. Build [Dockerfile.seeding-job](../infra/scripts/post-provision/Dockerfile.seeding-job)
+with an isolated context containing only `content_packs/` and its required scripts.
+The job's managed identity needs ACR Pull, Storage Blob Data Contributor, Search
+Service Contributor, and Search Index Data Contributor on the relevant resources.
+For full seeding, supply the backend, OpenAI and project endpoints plus the project
+resource ID; the identity also needs Foundry User on the account and Cognitive
+Services Contributor on the project to create connections. The Search and project
+identities need access to their connected services.
+
+Run `az containerapp job start -g <resource-group> -n <job-name>` and check execution
+status and logs for `FULL_SEEDING_VERIFIED`. By default, the job runs option 7
+without prompts: six teams, four data packs, nine indexes, two vector stores, nine
+knowledge bases and nine project connections. `--datasets-only` retains the upload/
+index-only mode; `--packs` selects individual packs. Public access stays disabled.
+Reruns overwrite dataset blobs and reuse verified vector stores.

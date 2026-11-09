@@ -1,10 +1,10 @@
-"""Create Foundry IQ vector stores from data/datasets/ files.
+"""Create Foundry IQ vector stores from the retail content pack datasets.
 
 Usage:
     python scripts/seed_vector_stores.py
 
 Requires AZURE_AI_PROJECT_ENDPOINT in src/backend/.env.
-Idempotent: finds existing vector stores by name and skips re-creation.
+Idempotent: reuses existing stores only when ingestion and file counts are complete.
 
 Note: CSV files are converted to JSON before upload because the
 FileSearchTool only supports: .c .cpp .cs .css .doc .docx .go .html
@@ -32,17 +32,17 @@ if not PROJECT_ENDPOINT:
     print("ERROR: AZURE_AI_PROJECT_ENDPOINT not set. Check src/backend/.env")
     sys.exit(1)
 
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "datasets"
+DATA_DIR = Path(__file__).resolve().parents[3] / "content_packs" / "retail_customer" / "datasets"
 
 # -------------------------------------------------------------------
 # Vector store definitions: name → list of data file paths
 # -------------------------------------------------------------------
 VECTOR_STORES: dict[str, list[Path]] = {
     "macae-retail-customer-data": sorted(
-        (DATA_DIR / "retail" / "customer").glob("*")
+        (DATA_DIR / "customer").glob("*")
     ),
     "macae-retail-order-data": sorted(
-        (DATA_DIR / "retail" / "order").glob("*")
+        (DATA_DIR / "order").glob("*")
     ),
 }
 
@@ -77,6 +77,13 @@ def create_vector_store(oai, name: str, file_paths: list[Path]) -> str:
     """Create a vector store, upload files, and wait for ingestion."""
     existing_id = find_existing_store(oai, name)
     if existing_id:
+        store = oai.vector_stores.retrieve(existing_id)
+        expected = sum(
+            path.is_file() and (path.suffix.lower() in SUPPORTED_EXTENSIONS or path.suffix.lower() == ".csv")
+            for path in file_paths
+        )
+        if expected == 0 or store.status != "completed" or store.file_counts.completed < expected:
+            raise RuntimeError(f"Existing vector store '{name}' is incomplete; inspect it before rerunning.")
         print(f"  SKIP: '{name}' already exists (id={existing_id})")
         return existing_id
 
@@ -104,8 +111,7 @@ def create_vector_store(oai, name: str, file_paths: list[Path]) -> str:
         print(f"    → {uploaded.id}")
 
     if not file_ids:
-        print(f"  WARN: No files found for '{name}', skipping vector store creation.")
-        return ""
+        raise RuntimeError(f"No supported dataset files found for '{name}'.")
 
     # Create vector store
     vs = oai.vector_stores.create(name=name)
@@ -119,7 +125,10 @@ def create_vector_store(oai, name: str, file_paths: list[Path]) -> str:
     print(f"  Ingesting {len(file_ids)} file(s)... (batch={batch.id})")
 
     # Poll until complete
+    deadline = time.monotonic() + 600
     while batch.status in ("in_progress", "validating"):
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Vector store ingestion timed out: {name}")
         time.sleep(2)
         batch = oai.vector_stores.file_batches.retrieve(
             vector_store_id=vs.id,
@@ -128,8 +137,10 @@ def create_vector_store(oai, name: str, file_paths: list[Path]) -> str:
         print(f"    status={batch.status}, completed={batch.file_counts.completed}/{batch.file_counts.total}")
 
     if batch.status != "completed":
-        print(f"  ERROR: Batch finished with status={batch.status}")
-        print(f"    failed={batch.file_counts.failed}, cancelled={batch.file_counts.cancelled}")
+        raise RuntimeError(
+            f"Vector store ingestion failed: status={batch.status}, "
+            f"failed={batch.file_counts.failed}, cancelled={batch.file_counts.cancelled}"
+        )
     else:
         print(f"  Done: {batch.file_counts.completed} file(s) ingested.")
 

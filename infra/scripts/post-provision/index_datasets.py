@@ -1,9 +1,10 @@
-from azure.identity import AzureCliCredential
+from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex, SimpleField, SearchableField, SearchFieldDataType
 from azure.storage.blob import BlobServiceClient
 import sys
+import os
 
 
 # PDF text extraction function
@@ -95,7 +96,11 @@ ai_search_index_name = (sys.argv[4] if len(sys.argv) > 4 else "sample-dataset-in
 if "search.windows.net" not in ai_search_endpoint:
     ai_search_endpoint = f"https://{ai_search_endpoint}.search.windows.net"
 
-credential = AzureCliCredential()
+credential = (
+    ManagedIdentityCredential(client_id=os.environ["AZURE_CLIENT_ID"])
+    if os.environ.get("IDENTITY_ENDPOINT") and os.environ.get("AZURE_CLIENT_ID")
+    else AzureCliCredential()
+)
 
 try:
     blob_service_client = BlobServiceClient(account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=credential)
@@ -168,8 +173,12 @@ try:
     successes = sum(1 for r in result if getattr(r, "succeeded", False))
     failures = len(data_list) - successes
     print(f"Uploaded documents. Requested: {len(data_list)}, Succeeded: {successes}, Failed: {failures}")
+    if failures:
+        sys.exit(1)
 except Exception as e:
     print(f"Error uploading documents: {e}")
     sys.exit(1)
 
 print(f"Processing complete. Success: {success_count}, Failed: {fail_count}")
+if fail_count:
+    sys.exit(1)
